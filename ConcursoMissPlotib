@@ -1,0 +1,76 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score
+from matplotlib.colors import ListedColormap
+import itertools
+import seaborn as sns
+
+# Estilo visual profissional
+plt.style.use('seaborn-v0_8-darkgrid')
+sns.set_context('notebook', font_scale=1.3)
+
+def generate_checkerboard(n_samples=1000, n_tiles=3, seed=42):
+    np.random.seed(seed)
+    X = np.random.uniform(0, 1, size=(n_samples, 2))
+    y = ((np.floor(X[:, 0] * n_tiles) + np.floor(X[:, 1] * n_tiles)) % 2).astype(int)
+    return X, y
+
+def plot_svm_decision_boundary(X, y, model, title, annotate=False):
+    h = 0.002
+    x_min, x_max = 0, 1
+    y_min, y_max = 0, 1
+    xx, yy = np.meshgrid(np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
+    Z = model.predict(np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)
+
+    # Paleta elegante
+    cmap_background = ListedColormap(["#f7f7f7", "#d0e1f9"])
+    cmap_points = ListedColormap(["#e94f37", "#393e41"])
+
+    fig, ax = plt.subplots(figsize=(8, 8), dpi=150)
+    ax.contourf(xx, yy, Z, cmap=cmap_background, alpha=0.7, zorder=1)
+    scatter = ax.scatter(X[:, 0], X[:, 1], c=y, cmap=cmap_points, s=40, edgecolor='white', linewidth=0.8, zorder=2)
+
+    # Vetores de suporte destacados
+    sv = model.support_vectors_
+    ax.scatter(sv[:, 0], sv[:, 1], s=120, facecolors='none', edgecolors='#ffb400', linewidths=2.2, label='Vetores de Suporte', zorder=3)
+
+    ax.set_title(title, fontsize=16, weight='bold', pad=15)
+    ax.set_xlabel("x0", fontsize=13)
+    ax.set_ylabel("x1", fontsize=13)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.legend(loc='upper right', frameon=True, facecolor='white', fontsize=12)
+    ax.grid(True, linestyle='--', linewidth=0.7, alpha=0.7)
+
+    # Anotação opcional (exemplo)
+    if annotate:
+        ax.annotate('Exemplo de anotação', xy=(0.7, 0.7), xytext=(0.5, 0.9),
+                    arrowprops=dict(facecolor='black', shrink=0.05, width=1, headwidth=8),
+                    fontsize=12, color='black', weight='bold')
+
+    plt.tight_layout()
+    plt.show()
+
+# Parâmetros
+C_values = [1, 10, 100]
+gamma_values = [0.1, 1, 10]
+tiles_values = [2, 3, 4]
+best_results = []
+
+# Loop para testar todas combinações
+for n_tiles, C, gamma in itertools.product(tiles_values, C_values, gamma_values):
+    X, y = generate_checkerboard(n_samples=1000, n_tiles=n_tiles)
+    model = SVC(kernel='rbf', C=C, gamma=gamma, random_state=42)
+    model.fit(X, y)
+    acc = accuracy_score(y, model.predict(X))
+    best_results.append((acc, n_tiles, C, gamma, model, X, y))
+
+# Ordena pelas maiores acurácias
+best_results.sort(reverse=True, key=lambda x: x[0])
+
+# Exibe as 3 melhores configurações
+for i, (acc, n_tiles, C, gamma, model, X, y) in enumerate(best_results[:3]):
+    title = f"Top {i+1}: Tiles={n_tiles}, C={C}, Gamma={gamma}, Acurácia={acc:.2%}"
+    print(title)
+    plot_svm_decision_boundary(X, y, model, title)
