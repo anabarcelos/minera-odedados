@@ -1,0 +1,40 @@
+# Exercício 1: Ângulos entre vetores aleatórios em alta dimensão
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+np.random.seed(42)
+
+# Dimensões para testar
+dim_list = [2, 5, 10, 20, 50, 100, 200, 500, 1000]
+num_amostras = 1000
+
+for d in dim_list:
+    angulos = []
+    for _ in range(num_amostras):
+        a = np.random.normal(0, 1, size=d)
+        b = np.random.normal(0, 1, size=d)
+
+        produto_escalar = np.dot(a, b)
+        norma_a = np.linalg.norm(a)
+        norma_b = np.linalg.norm(b)
+
+        cos_theta = produto_escalar / (norma_a * norma_b)
+
+        # limitando o valor para evitar erros numéricos
+        cos_theta = np.clip(cos_theta, -1, 1)
+
+        angulo_rad = np.arccos(cos_theta)
+        angulo_graus = np.degrees(angulo_rad)
+
+        angulos.append(angulo_graus)
+
+    plt.figure()
+    plt.hist(angulos, bins=30, color='skyblue', edgecolor='black')
+    plt.title(f"Histograma dos Ângulos (graus) - dimensão {d}")
+    plt.xlabel("Ângulo (graus)")
+    plt.ylabel("Frequência")
+    plt.grid(True)
+    plt.show()
+
+
