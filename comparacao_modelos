@@ -1,0 +1,190 @@
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
+
+dados = pd.read_csv("dataset_classificacao.csv")
+print(dados.head())  # Visualiza as primeiras linhas
+
+
+X = dados.drop(columns=["target"])
+y = dados["target"]
+
+X_temp, X_teste, y_temp, y_teste = train_test_split(X, y, test_size=0.2, random_state=42)
+X_treino, X_validacao, y_treino, y_validacao = train_test_split(X_temp, y_temp, test_size=0.25, random_state=42)
+
+# Função de avaliação comum para todos os modelos
+def avalia(modelo, X, y):
+    pred = modelo.predict(X)
+    return {
+        "acuracia": accuracy_score(y, pred),
+        "precisao": precision_score(y, pred),
+        "recall": recall_score(y, pred),
+        "f1": f1_score(y, pred)
+    }
+
+#Árvore de Decisão com poda (todas as variáveis)
+path = DecisionTreeClassifier(random_state=42).cost_complexity_pruning_path(X_treino, y_treino)
+ccp_alphas = path.ccp_alphas
+
+melhor_f1 = 0
+melhor_modelo_arvore = None
+
+for alpha in ccp_alphas:
+    modelo = DecisionTreeClassifier(random_state=42, ccp_alpha=alpha)
+    modelo.fit(X_treino, y_treino)
+    pred = modelo.predict(X_validacao)
+    f1 = f1_score(y_validacao, pred)
+    if f1 > melhor_f1:
+        melhor_f1 = f1
+        melhor_modelo_arvore = modelo
+
+#KNN (todas as variáveis)
+melhor_f1_knn = 0
+melhor_modelo_knn = None
+
+for k in [3, 5, 10, 20]:
+    modelo = KNeighborsClassifier(n_neighbors=k)
+    modelo.fit(X_treino, y_treino)
+    pred = modelo.predict(X_validacao)
+    f1 = f1_score(y_validacao, pred)
+    if f1 > melhor_f1_knn:
+        melhor_f1_knn = f1
+        melhor_modelo_knn = modelo
+
+# Regressão Logística (todas as variáveis)
+modelo_rl = LogisticRegression(max_iter=1000)
+modelo_rl.fit(X_treino, y_treino)
+
+#Floresta Aleatória (todas as variáveis)
+criterios = ['gini', 'entropy']
+max_features_list = ['sqrt', 'log2', None]
+
+melhor_f1_rf = 0
+melhor_modelo_rf = None
+
+for criterio in criterios:
+    for maxf in max_features_list:
+        modelo = RandomForestClassifier(n_estimators=100, criterion=criterio, max_features=maxf, random_state=42)
+        modelo.fit(X_treino, y_treino)
+        pred = modelo.predict(X_validacao)
+        f1 = f1_score(y_validacao, pred)
+        if f1 > melhor_f1_rf:
+            melhor_f1_rf = f1
+            melhor_modelo_rf = modelo
+
+# Avaliando todos os modelos na validação
+resultados = {
+    "Arvore": avalia(melhor_modelo_arvore, X_validacao, y_validacao),
+    "KNN": avalia(melhor_modelo_knn, X_validacao, y_validacao),
+    "Regressao Logistica": avalia(modelo_rl, X_validacao, y_validacao),
+    "Floresta Aleatoria": avalia(melhor_modelo_rf, X_validacao, y_validacao),
+}
+
+df_resultados = pd.DataFrame(resultados).T
+print(df_resultados)
+
+
+# Avaliando o melhor modelo no teste
+modelo_final = melhor_modelo_rf
+avaliacao_teste = avalia(modelo_final, X_teste, y_teste)
+print("\nDesempenho no teste com todas as variáveis:")
+print(avaliacao_teste)
+
+# Importância das variáveis usando Floresta Aleatoria
+importancias = modelo_final.feature_importances_
+indices = np.argsort(importancias)[-20:]  # Top 20
+
+plt.figure(figsize=(10, 6))
+plt.bar(range(len(indices)), importancias[indices])
+plt.xticks(range(len(indices)), X.columns[indices], rotation=90)
+plt.title("Top 20 variáveis mais importantes")
+plt.tight_layout()
+plt.show()
+
+# Usando somente as 5 variáveis mais importantes
+top5_indices = np.argsort(importancias)[-5:]
+top5_variaveis = X.columns[top5_indices]
+X_top5 = X[top5_variaveis]
+
+# Separando os dados novamente com apenas 5 variáveis
+X_temp5, X_teste5, y_temp5, y_teste5 = train_test_split(X_top5, y, test_size=0.2, random_state=42)
+X_treino5, X_validacao5, y_treino5, y_validacao5 = train_test_split(X_temp5, y_temp5, test_size=0.25, random_state=42)
+
+# Árvore de Decisão (apenas com as 5 melhores variaveis)
+path5 = DecisionTreeClassifier(random_state=42).cost_complexity_pruning_path(X_treino5, y_treino5)
+ccp_alphas5 = path5.ccp_alphas
+
+melhor_f1_arvore5 = 0
+melhor_modelo_arvore5 = None
+
+for alpha in ccp_alphas5:
+    modelo = DecisionTreeClassifier(random_state=42, ccp_alpha=alpha)
+    modelo.fit(X_treino5, y_treino5)
+    pred = modelo.predict(X_validacao5)
+    f1 = f1_score(y_validacao5, pred)
+    if f1 > melhor_f1_arvore5:
+        melhor_f1_arvore5 = f1
+        melhor_modelo_arvore5 = modelo
+
+# KNN (apenas com as 5 melhores variaveis)
+melhor_f1_knn5 = 0
+melhor_modelo_knn5 = None
+
+for k in [3, 5, 10, 20]:
+    modelo = KNeighborsClassifier(n_neighbors=k)
+    modelo.fit(X_treino5, y_treino5)
+    pred = modelo.predict(X_validacao5)
+    f1 = f1_score(y_validacao5, pred)
+    if f1 > melhor_f1_knn5:
+        melhor_f1_knn5 = f1
+        melhor_modelo_knn5 = modelo
+
+# Regressão Logística (apenas com as 5 melhores variaveis)
+modelo_rl5 = LogisticRegression(max_iter=1000)
+modelo_rl5.fit(X_treino5, y_treino5)
+
+# Floresta Aleatória (apenas com as 5 melhores variaveis)
+melhor_f1_rf5 = 0
+melhor_modelo_rf5 = None
+
+for criterio in criterios:
+    for maxf in max_features_list:
+        modelo = RandomForestClassifier(n_estimators=100, criterion=criterio, max_features=maxf, random_state=42)
+        modelo.fit(X_treino5, y_treino5)
+        pred = modelo.predict(X_validacao5)
+        f1 = f1_score(y_validacao5, pred)
+        if f1 > melhor_f1_rf5:
+            melhor_f1_rf5 = f1
+            melhor_modelo_rf5 = modelo
+
+# Avaliar modelos apenas com as 5 melhores variaveis
+resultados_5_variáveis_mais_importantes = {
+    "Arvore (5 variáveis mais importantes)": avalia(melhor_modelo_arvore5, X_validacao5, y_validacao5),
+    "KNN (5 variáveis mais importantes)": avalia(melhor_modelo_knn5, X_validacao5, y_validacao5),
+    "Reg Logistica (5 variáveis mais importantes)": avalia(modelo_rl5, X_validacao5, y_validacao5),
+    "Floresta (5 variáveis mais importantes)": avalia(melhor_modelo_rf5, X_validacao5, y_validacao5),
+}
+
+df_resultados_5_variáveis_mais_importantes = pd.DataFrame(resultados_5_variáveis_mais_importantes).T
+print(df_resultados_5_variáveis_mais_importantes)
+
+# Comparação final: todas as variáveis vs top5
+comparacao_final = pd.concat([
+    df_resultados.add_suffix(" (todas)"),
+    df_resultados_5_variáveis_mais_importantes.add_suffix(" (5 mais importantes)")
+], axis=1)
+print(comparacao_final)
+
+# Avaliação final no conjunto de teste (top5)
+avaliacao_teste_top5 = avalia(melhor_modelo_rf5, X_teste5, y_teste5)
+print("Desempenho no teste com a 5 variáveis mais importantes:")
+print(avaliacao_teste_top5)
+
